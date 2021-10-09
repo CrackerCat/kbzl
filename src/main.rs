@@ -127,3 +127,10 @@ fn main() {
         }
     }
 }
+
+
+fn open_mem(pid: u32) -> File {
+    let path = format!("/proc/{}/mem", pid);
+    let file = File::open(&Path::new(&path)).expect("aaaa");
+    return file;
+}
