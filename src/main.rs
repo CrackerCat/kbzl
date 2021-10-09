@@ -8,10 +8,10 @@ use std::{
 };
 
 fn get_module_base(pid: u32,name:&str) ->usize{
-        for s in get_process_maps(pid){
-        for ss in s{
-            if ss.filename().as_deref().unwrap_or("") ==name && ss.is_read()&&ss.is_write()&&!ss.is_exec(){
-                return ss.start();
+        for maps in get_process_maps(pid){
+        for line in maps{
+            if line.filename().as_deref().unwrap_or("") ==name && line.is_read()&&line.is_write()&&!line.is_exec(){
+                return line.start();
             }
         }
     }
@@ -122,7 +122,7 @@ fn main() {
 
     loop {
         thread::sleep(Duration::from_millis(1000));
-        if pid == 0 {
+        if findpid("hello") == 0 {
             process::exit(0);
         }
     }
