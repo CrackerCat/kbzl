@@ -1,4 +1,3 @@
-use libc;
 use std::{
     self,
     fs::{self, File},
@@ -8,12 +7,15 @@ use std::{
     time::Duration,
 };
 
-type Pid = libc::pid_t;
-
-fn get_module_base(pid: Pid) -> u32 {
-    let mut startaddr: u32 = 0;
-
-    return startaddr;
+fn get_module_base(pid: u32,name:&str) ->usize{
+        for s in get_process_maps(pid){
+        for ss in s{
+            if ss.filename().as_deref().unwrap_or("") ==name && ss.is_read()&&ss.is_write()&&!ss.is_exec(){
+                return ss.start();
+            }
+        }
+    }
+    0
 }
 
 fn findpid(name: &str) -> u32 {
@@ -31,19 +33,7 @@ fn findpid(name: &str) -> u32 {
             }
         }
     }
-    if pid == 0 {
-        return 0;
-    }
-    return pid;
-}
-
-fn findpid1(name: &str) {
-    loop {
-        thread::sleep(Duration::from_millis(1));
-        if findpid(name) == 0 {
-            process::exit(0);
-        }
-    }
+    pid
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,7 +68,7 @@ impl MapRange {
     }
 }
 
-fn get_process_maps(pid: Pid) -> std::io::Result<Vec<MapRange>> {
+fn get_process_maps(pid: u32) -> std::io::Result<Vec<MapRange>> {
     let maps_file = format!("/proc/{}/maps", pid);
     let mut file = File::open(maps_file)?;
     let mut contents = String::new();
@@ -115,4 +105,25 @@ fn parse_proc_maps(contents: &str) -> Vec<MapRange> {
     vec
 }
 
-fn main() {}
+fn main() {
+
+    let pid = findpid("hello");
+
+    thread::spawn(move || {
+        let a =get_module_base(pid,"[heap]");
+        if a==0{
+            process::exit(0);
+        }
+        loop {
+            thread::sleep(Duration::from_millis(1000));
+            println!("{:x}",a);
+        }        
+    });
+
+    loop {
+        thread::sleep(Duration::from_millis(1000));
+        if pid == 0 {
+            process::exit(0);
+        }
+    }
+}
