@@ -1,16 +1,21 @@
 use std::{
     self,
+    convert::TryInto,
     fs::{self, File},
-    io::Read,
+    io::{self, Read, Seek, SeekFrom},
     path::Path,
     process, thread,
     time::Duration,
 };
 
-fn get_module_base(pid: u32,name:&str) ->usize{
-        for maps in get_process_maps(pid){
-        for line in maps{
-            if line.filename().as_deref().unwrap_or("") ==name && line.is_read()&&line.is_write()&&!line.is_exec(){
+fn get_module_base(pid: u32, name: &str) -> usize {
+    for maps in get_process_maps(pid) {
+        for line in maps {
+            if line.filename().as_deref().unwrap_or("") == name
+                && line.is_read()
+                && line.is_write()
+                && !line.is_exec()
+            {
                 return line.start();
             }
         }
@@ -106,31 +111,45 @@ fn parse_proc_maps(contents: &str) -> Vec<MapRange> {
 }
 
 fn main() {
+    let pid = findpid("lll");
 
-    let pid = findpid("hello");
+    thread::spawn(move || -> ! {
+        let start = get_module_base(pid, "aa");
 
-    thread::spawn(move || {
-        let a =get_module_base(pid,"[heap]");
-        if a==0{
-            process::exit(0);
-        }
         loop {
             thread::sleep(Duration::from_millis(1000));
-            println!("{:x}",a);
-        }        
+
+            let x = read_bytes(pid, start as u64 + 1234, 8);
+
+            match x {
+                Ok(mut i) => {
+                    i.reverse();
+                    println!("{:?}", i);
+                    println!("{}", u64::from_be_bytes(vec_to_arr(i)))
+                }
+                Err(err) => println!("{}",err),
+            }
+        }
     });
 
     loop {
         thread::sleep(Duration::from_millis(1000));
-        if findpid("hello") == 0 {
+        if findpid("lll") == 0 {
             process::exit(0);
         }
     }
 }
 
+fn vec_to_arr<T, const N: usize>(v: Vec<T>) -> [T; N] {
+    v.try_into()
+        .unwrap_or_else(|v: Vec<T>| panic!("Expected a Vec of length {} but it was {}", N, v.len()))
+}
 
-fn open_mem(pid: u32) -> File {
+fn read_bytes(pid: u32, offset: u64, size: usize) -> Result<Vec<u8>, io::Error> {
     let path = format!("/proc/{}/mem", pid);
-    let file = File::open(&Path::new(&path)).expect("aaaa");
-    return file;
+    let mut file = File::open(&Path::new(&path))?;
+    file.seek(SeekFrom::Start(offset))?;
+    let mut buffer = vec![0; size];
+    file.read(&mut buffer)?;
+    Ok(buffer)
 }
