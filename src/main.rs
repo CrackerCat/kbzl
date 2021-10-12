@@ -1,12 +1,6 @@
-use std::{
-    self,
-    convert::TryInto,
-    fs::{self, File},
-    io::{self, Read, Seek, SeekFrom},
-    path::Path,
-    process, thread,
-    time::Duration,
-};
+#![allow(dead_code,unused_imports)]
+
+use std::{self, convert::TryInto, fs::{self, File}, io::{self, Read, Seek, SeekFrom}, path::Path, process::{self, Command}, thread, time::Duration};
 
 fn get_module_base(pid: u32, name: &str) -> usize {
     for maps in get_process_maps(pid) {
@@ -110,7 +104,7 @@ fn parse_proc_maps(contents: &str) -> Vec<MapRange> {
     vec
 }
 
-fn main() {
+/* fn main() {
     let pid = findpid("lll");
 
     thread::spawn(move || -> ! {
@@ -139,7 +133,7 @@ fn main() {
         }
     }
 }
-
+ */
 fn vec_to_arr<T, const N: usize>(v: Vec<T>) -> [T; N] {
     v.try_into()
         .unwrap_or_else(|v: Vec<T>| panic!("Expected a Vec of length {} but it was {}", N, v.len()))
@@ -152,4 +146,54 @@ fn read_bytes(pid: u32, offset: u64, size: usize) -> Result<Vec<u8>, io::Error> 
     let mut buffer = vec![0; size];
     file.read(&mut buffer)?;
     Ok(buffer)
+}
+
+fn get_bytes(pid: u32, offset: u64, size: usize) -> Result<Vec<u8>, io::Error> {
+    let path = format!("/proc/{}/mem", pid);
+    let mut file = File::open(&Path::new(&path))?;
+    file.seek(SeekFrom::Start(offset))?;
+    let mut buffer = vec![0; size];
+    file.read(&mut buffer)?;
+    Ok(buffer)
+}
+
+fn game_safe(){
+    Command::new("sh")
+            .arg("-c")
+            .arg("echo 0 > /proc/sys/fs/inotify/max_user_watches")
+            .output()
+            .expect("sh command failed to start");
+}
+
+fn main(){
+
+    game_safe();
+
+    let pid = findpid("om.tencent.lolm");
+
+    thread::spawn(move || -> ! {
+        let start = get_module_base(pid, "[anon:libc_malloc]");
+        println!("pid: {}, startaddr: 0x{:x}",pid,start);
+        loop {
+            thread::sleep(Duration::from_millis(1000));
+            
+            let x = read_bytes(pid, 0x4b1d3a4c, 8);
+
+            match x {
+                Ok(mut i) => {
+                    i.reverse();
+                    println!("{:?}", i);
+                    println!("{}", u64::from_be_bytes(vec_to_arr(i)))
+                }
+                Err(err) => println!("{}",err),
+            }
+        }
+    });
+
+loop {
+    thread::sleep(Duration::from_millis(1000));
+    if findpid("om.tencent.lolm") == 0 {
+        process::exit(0);
+    }
+}
 }
